@@ -1,14 +1,28 @@
 #-
+
 --------------------------------------------------------------------
 | Mitsubishi Electric HVAC sensors display driver written in Berry |
-|   #1 coded by aldweb (December 17th, 2024)                       |
+| #1 coded by aldweb (December 17th, 2024)                         |
+| #2 enhanced with control buttons (January 30th, 2026)            |
+| #3 Updated for MiElHVAC driver PR#24660 (April 25th, 2026)       |
 --------------------------------------------------------------------
 
-aldweb version #1
-- for those using the MiElHVAC driver (https://github.com/arendst/Tasmota/blob/development/tasmota/tasmota_xdrv_driver/xdrv_44_miel_hvac.ino),
-  this berry display driver lets you visualize the MiElHVAC sensor parameters on the Tasmota web console, which it does not offer by default.
-- if not all parameters are required in your setting, then just quote the required lines (2 of them for each parameter, the one starting 
-  with "{s}MiElHVAC  and the one starting with sensors['MiElHVAC']).
+For those using the MiElHVAC driver (https://github.com/arendst/Tasmota/blob/development/tasmota/tasmota_xdrv_driver/xdrv_44_miel_hvac.ino),
+this berry display driver lets you visualize the MiElHVAC sensor parameters on the Tasmota web console, which it does not offer by default.
+
+#3 Key renames vs old driver:
+  Power            -> PowerState      (on/off string)
+  Temperature      -> RoomTemperature (room temp float)
+  Compressor       -> CompressorState (on/off string)
+  OperationPower   -> Power           (integer Watts)
+  OperationEnergy  -> Energy          (float kWh)
+
+To enable a field: remove the leading #
+To disable a field: add a leading #
+Each field requires TWO lines to be commented/uncommented:
+  - the format string line  "{s}MiElHVAC ...{m}...{e}"
+  - the value line          sensors['MiElHVAC']['...']
+
 -#
 
 var sensors
@@ -18,7 +32,7 @@ class HVAC : Driver
   #- read sensor data -#
   def read_hvac()
     import json
-    sensors=json.load(tasmota.read_sensors())
+    sensors = json.load(tasmota.read_sensors())
   end
 
   #- trigger a read every second -#
@@ -29,8 +43,9 @@ class HVAC : Driver
   #- display sensor value in the web UI -#
   def web_sensor()
     import string
-    
-    # Display sensor values
+
+    if sensors == nil || !sensors.contains('MiElHVAC') return end
+
     # Calculate OperationTime in days, hours, minutes
     var total_minutes = int(sensors['MiElHVAC']['OperationTime'])
     var days = int(total_minutes / 1440)
@@ -39,65 +54,87 @@ class HVAC : Driver
     var minutes = int(remaining_minutes % 60)
     var operation_time_str = ""
     if days >= 1
-      # Afficher jours et heures seulement
       operation_time_str = string.format("%dd %dhr", days, hours)
     else
-      # Afficher heures et minutes seulement
       operation_time_str = string.format("%dhr %dmn", hours, minutes)
-    end    
-    
+    end
+
     var msg = string.format(
-      "{s}MiElHVAC Power{m}%s{e}"
+    # --- General state ---
+      "{s}MiElHVAC Power State{m}%s{e}"
       "{s}MiElHVAC Mode{m}%s{e}"
-      "{s}MiElHVAC SetTemperature{m}%1.1f °%s{e}"
-      "{s}MiElHVAC FanSpeed{m}%i{e}"
-      "{s}MiElHVAC SwingV{m}%s{e}"
-      "{s}MiElHVAC SwingH{m}%s{e}"
-#      "{s}MiElHVAC AirDirection{m}%s{e}"
-#      "{s}MiElHVAC Prohibit{m}%s{e}"
-      "{s}MiElHVAC RoomTemperature{m}%1.1f °%s{e}"
-#      "{s}MiElHVAC RemoteTemperatureSensorState{m}%s{e}"
-#      "{s}MiElHVAC RemoteTemperatureSensorAutoClearTime{m}%i{e}"
-      "{s}MiElHVAC OutdoorTemperature{m}%1.1f °%s{e}"
-      "{s}MiElHVAC OperationTime{m}%s{e}"
-#      "{s}MiElHVAC TimerMode{m}%s{e}"
-#      "{s}MiElHVAC TimerOn{m}%i{e}"
-#      "{s}MiElHVAC TimerOnRemaining{m}%i{e}"
-#      "{s}MiElHVAC TimerOff{m}%i{e}"
-#      "{s}MiElHVAC TimerOffRemaining{m}%i{e}"
+    # "{s}MiElHVAC HA Mode{m}%s{e}"
+      "{s}MiElHVAC Set Temperature{m}%1.1f °%s{e}"
+      "{s}MiElHVAC Fan Speed{m}%s{e}"
+      "{s}MiElHVAC Swing Vertical{m}%s{e}"
+      "{s}MiElHVAC Swing Horizontal{m}%s{e}"
+    # "{s}MiElHVAC Air Direction{m}%s{e}"
+    # "{s}MiElHVAC Prohibit{m}%s{e}"
+    # "{s}MiElHVAC Purifier{m}%s{e}"
+    # "{s}MiElHVAC Night Mode{m}%s{e}"
+    # "{s}MiElHVAC Econo Cool{m}%s{e}"
+    # --- Temperatures ---
+      "{s}MiElHVAC Room Temperature{m}%1.1f °%s{e}"
+    # "{s}MiElHVAC Remote Temperature{m}%1.1f °%s{e}"
+      "{s}MiElHVAC Outdoor Temperature{m}%1.1f °%s{e}"
+    # --- Remote temperature sensor ---
+    # "{s}MiElHVAC Remote Sensor State{m}%s{e}"
+    # "{s}MiElHVAC Remote Sensor Auto Clear Time{m}%i s{e}"
+    # --- Timers ---
+    # "{s}MiElHVAC Timer Mode{m}%s{e}"
+    # "{s}MiElHVAC Timer On{m}%i mn{e}"
+    # "{s}MiElHVAC Timer On Remaining{m}%i mn{e}"
+    # "{s}MiElHVAC Timer Off{m}%i mn{e}"
+    # "{s}MiElHVAC Timer Off Remaining{m}%i mn{e}"
+    # --- Operation ---
+      "{s}MiElHVAC Operation Time{m}%s{e}"
       "{s}MiElHVAC Compressor{m}%s{e}"
-#      "{s}MiElHVAC CompressorFrequency{m}%i{e}"
-      "{s}MiElHVAC OperationPower{m}%i kW{e}"
-      "{s}MiElHVAC OperationEnergy{m}%1.1f kWh{e}",
-#      "{s}MiElHVAC OperationStage{m}%s{e}"
-#      "{s}MiElHVAC FanStage{m}%i{e}"
-#      "{s}MiElHVAC ModeStage{m}%s{e}"
-      sensors['MiElHVAC']['Power'],
+    # "{s}MiElHVAC Compressor Frequency{m}%i Hz{e}"
+    # "{s}MiElHVAC Operation Stage{m}%s{e}"
+    # "{s}MiElHVAC Fan Stage{m}%s{e}"
+    # "{s}MiElHVAC Mode Stage{m}%s{e}"
+    # --- Energy ---
+      "{s}MiElHVAC Power (W){m}%i W{e}"
+      "{s}MiElHVAC Energy{m}%1.1f kWh{e}"
+      ,
+    # --- General state ---
+      sensors['MiElHVAC']['PowerState'],
       sensors['MiElHVAC']['Mode'],
+    # sensors['MiElHVAC']['HAMode'],
       sensors['MiElHVAC']['SetTemperature'], sensors['TempUnit'],
       sensors['MiElHVAC']['FanSpeed'],
       sensors['MiElHVAC']['SwingV'],
       sensors['MiElHVAC']['SwingH'],
-#      sensors['MiElHVAC']['AirDirection'],
-#      sensors['MiElHVAC']['Prohibit'],
-      sensors['MiElHVAC']['Temperature'], sensors['TempUnit'],
-#      sensors['MiElHVAC']['RemoteTemperatureSensorState'],
-#      sensors['MiElHVAC']['RemoteTemperatureSensorAutoClearTime'],
+    # sensors['MiElHVAC']['AirDirection'],
+    # sensors['MiElHVAC']['Prohibit'],
+    # sensors['MiElHVAC']['Purifier'],
+    # sensors['MiElHVAC']['NightMode'],
+    # sensors['MiElHVAC']['EconoCool'],
+    # --- Temperatures ---
+      sensors['MiElHVAC']['RoomTemperature'], sensors['TempUnit'],
+    # sensors['MiElHVAC']['RemoteTemperature'], sensors['TempUnit'],
       sensors['MiElHVAC']['OutdoorTemperature'], sensors['TempUnit'],
+    # --- Remote temperature sensor ---
+    # sensors['MiElHVAC']['RemoteTemperatureSensorState'],
+    # sensors['MiElHVAC']['RemoteTemperatureSensorAutoClearTime'],
+    # --- Timers ---
+    # sensors['MiElHVAC']['TimerMode'],
+    # sensors['MiElHVAC']['TimerOn'],
+    # sensors['MiElHVAC']['TimerOnRemaining'],
+    # sensors['MiElHVAC']['TimerOff'],
+    # sensors['MiElHVAC']['TimerOffRemaining'],
+    # --- Operation ---
       operation_time_str,
-#      sensors['MiElHVAC']['TimerMode'],
-#      sensors['MiElHVAC']['TimerOn'],
-#      sensors['MiElHVAC']['TimerOnRemaining'],
-#      sensors['MiElHVAC']['TimerOff'],
-#      sensors['MiElHVAC']['TimerOffRemaining'],
-      sensors['MiElHVAC']['Compressor'],
-#      sensors['MiElHVAC']['CompressorFrequency'],
-      sensors['MiElHVAC']['OperationPower'],
-      sensors['MiElHVAC']['OperationEnergy']
-#      sensors['MiElHVAC']['OperationStage'],
-#      sensors['MiElHVAC']['FanStage'],
-#      sensors['MiElHVAC']['ModeStage']
+      sensors['MiElHVAC']['CompressorState']
+    # sensors['MiElHVAC']['CompressorFrequency'],
+    # sensors['MiElHVAC']['OperationStage'],
+    # sensors['MiElHVAC']['FanStage'],
+    # sensors['MiElHVAC']['ModeStage'],
+    # --- Energy ---
+    # sensors['MiElHVAC']['Power'],
+    # sensors['MiElHVAC']['Energy']
     )
+
     tasmota.web_send_decimal(msg)
   end
 
