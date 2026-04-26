@@ -11,7 +11,7 @@ Enhanced Berry driver for Tasmota providing interactive web UI controls for Mits
 ## Overview
 
 <img src="images/mitsubishi_heat_pump.png" align="left" width="300" style="margin-right: 20px; margin-bottom: 20px;">
-This Berry driver extends the native Tasmota MiElHVAC driver by adding a web interface for Mitsubishi Electric heat pumps. 
+This Berry driver extends the native Tasmota MiElHVAC driver by adding a web interface for Mitsubishi Electric heat pumps.
 <br clear="all" />
 
 Two versions are available:
@@ -24,40 +24,66 @@ Two versions are available:
 - Collapsible control panel to save screen space
 - Formatted operation time display (days/hours/minutes)
 - Automatic temperature unit adaptation (°C or °F)
+- **Dynamic controls** — selectors and options adapt automatically to your model's capabilities
+- **Backward compatible** — works with Tasmota MiElHVAC driver <= 15.3.x and >= 15.4.x
 
 **Display-Only Version (`hvac_display_only.be`):**
 - Sensor readings display only
 - No interactive controls
 - Lightweight and minimal memory footprint
 - Ideal for monitoring or when controlling via Home Assistant/MQTT
+- **Backward compatible** — works with Tasmota MiElHVAC driver <= 15.3.x and >= 15.4.x
 
 Both versions provide a clean, responsive interface matching Tasmota's design.
 
 <img src="images/hvac_with_expanded.png" style="margin-right: 20px; margin-bottom: 20px;">
 
+## Compatibility
+
+| Tasmota version | MiElHVAC driver | Status |
+|---|---|---|
+| <= 15.3.x | Old API | ✅ Supported (auto-detected) |
+| >= 15.4.x | New API (PR#24660) | ✅ Supported (auto-detected) |
+
+The driver automatically detects which API version is running at runtime — no configuration needed.
+
+### API changes in Tasmota >= 15.4.x (PR#24660)
+
+The MiElHVAC driver introduced in PR#24660 renamed several JSON keys. The display driver handles this transparently:
+
+| Old key (<=15.3.x) | New key (>=15.4.x) | Description |
+|---|---|---|
+| `Power` | `PowerState` | On/off state (string) |
+| `Temperature` | `RoomTemperature` | Room temperature (float) |
+| `Compressor` | `CompressorState` | Compressor state (string) |
+| `OperationPower` | `Power` | Electrical power (integer Watts) |
+| `OperationEnergy` | `Energy` | Total energy (float kWh) |
+
+Additionally, the new API exposes model capability flags and supported temperature ranges, which the driver uses to adapt the control panel dynamically.
+
 ## Requirements
 
 ### Hardware
 - **Mitsubishi Electric Heat Pump** with CN105 connector
-- **ESP32 board** (DevKit, NodeMCU-32S, etc.) - **ESP8266 is NOT compatible** as Berry scripting requires ESP32
+- **ESP32 board** (DevKit, NodeMCU-32S, etc.) — **ESP8266 is NOT compatible** as Berry scripting requires ESP32
 - **JST PA 5-pin connector (2.0mm pitch)** to interface with CN105
 
 ### Software
-- **Tasmota32 firmware with MiElHVAC enabled** - A pre-compiled version (Tasmota 15.2.0) is included in this repository for convenience
+- **Tasmota32 firmware with MiElHVAC enabled** — A pre-compiled version (Tasmota 15.2.0) is included in this repository for convenience
 - Alternatively, you can compile your own custom firmware (see below)
 
 ## Hardware Setup
 
 For complete hardware setup instructions including wiring diagrams, photos, and physical installation steps, please consult these comprehensive guides:
 
-- **[Integration with Home Assistant via Tasmota (Archive)](https://web.archive.org/web/20240314034821/https://isaiahchia.com/2022/06/)** - Complete end-to-end guide with detailed photos and CN105 pinout
-- **[Hacking A Mitsubishi Heat Pump Part 1](https://chrdavis.github.io/hacking-a-mitsubishi-heat-pump-Part-1/)** - Hardware overview and initial setup
+- **[Integration with Home Assistant via Tasmota (Archive)](https://web.archive.org/web/20240314034821/https://isaiahchia.com/2022/06/)** — Complete end-to-end guide with detailed photos and CN105 pinout
+- **[Hacking A Mitsubishi Heat Pump Part 1](https://chrdavis.github.io/hacking-a-mitsubishi-heat-pump-Part-1/)** — Hardware overview and initial setup
 
 **Important Notes:**
 - Berry scripting is only available on ESP32, not ESP8266
 - Use Tasmota32 firmware, not the standard ESP8266 version
 - The CN105 connector provides serial UART communication at 5V
-- Proper wiring is critical - refer to the guides above for detailed instructions
+- Proper wiring is critical — refer to the guides above for detailed instructions
 
 ## Tasmota Firmware Compilation
 
@@ -74,23 +100,18 @@ This driver requires a custom **Tasmota32** build (for ESP32) with the MiElHVAC 
 
 ### Recommended: Use TasmoCompiler (Easiest Method)
 
-The easiest way to compile custom Tasmota firmware is using **[TasmoCompiler](https://github.com/benzino77/tasmocompiler)** - a web GUI for custom Tasmota compilation.
+The easiest way to compile custom Tasmota firmware is using **[TasmoCompiler](https://github.com/benzino77/tasmocompiler)** — a web GUI for custom Tasmota compilation.
 
 **Steps:**
 
 1. Visit one of the available TasmoCompiler instances (see [Compiling - Tasmota](https://tasmota.github.io/docs/Compile-your-build/) for options)
-
 2. Select your **Tasmota version** (latest stable recommended)
-
 3. Choose **tasmota32** as the build environment
-
 4. In **Custom parameters** (step 4), add:
    ```
    #define USE_MIEL_HVAC
    ```
-
 5. Click **Compile** and wait for the build to complete
-
 6. Download the compiled `.bin` file
 
 **Note:** Manual compilation with PlatformIO is also possible if you prefer a local development environment.
@@ -130,6 +151,7 @@ Two versions of the Berry driver are available in this repository:
    - Includes buttons for temperature adjustment
    - Dropdown selectors for Mode, Fan Speed, and Swing positions
    - Collapsible control panel
+   - Controls adapt dynamically to model capabilities
 
 2. **`hvac_display_only.be`** (Lightweight)
    - Display-only version showing sensor readings
@@ -175,54 +197,83 @@ Choose the version that best fits your needs.
 **Set Temperature**
 - Three buttons for temperature adjustment: -1°, +½°, +1°
 - Temperature unit automatically matches your Tasmota configuration (°C or °F)
-- Range: 10-31°C (50-88°F)
+- Temperature range is automatically read from your model's capabilities when running Tasmota >= 15.4.x (e.g. 10–31°C in heat mode), falling back to generic defaults otherwise
 
 **Mode**
 - Heat, Cool, Dry, Fan, Auto
 - Current mode is pre-selected in dropdown
+- Dry and Fan options are hidden automatically if not supported by your model (Tasmota >= 15.4.x)
 
 **Fan Speed**
-- Auto, Quiet, Speed 1-4
+- Auto, Quiet, Speed 1–4
 - Current speed is pre-selected
+- Auto option is hidden automatically if not supported by your model (Tasmota >= 15.4.x)
 
 **Swing Vertical**
 - Auto, Up, Up Middle, Center, Down Middle, Down, Swing
 - Current position is pre-selected
+- Entire control is hidden automatically if not supported by your model (Tasmota >= 15.4.x)
 
 **Swing Horizontal**
 - Auto, Left, Left Middle, Center, Right, Right Middle, Split, Swing
 - Current position is pre-selected
+- Entire control is hidden automatically if not supported by your model (Tasmota >= 15.4.x)
 
 ### Sensor Display
 
-The main page displays:
-- Power state (on/off)
-- Current mode
-- Set temperature
-- Fan speed
-- Swing positions
-- Room temperature
-- Outdoor temperature
-- Operation time (formatted as "Xd Xhr Xmn")
-- Compressor state
-- Operation power (kW)
-- Operation energy (kWh)
+The main page displays (enabled fields shown by default):
+
+| Field | Description |
+|---|---|
+| Power State | On/Off state of the heat pump |
+| Mode | Current operating mode |
+| Set Temperature | Target temperature |
+| Fan Speed | Current fan speed |
+| Swing Vertical | Vertical vane position |
+| Swing Horizontal | Horizontal vane position |
+| Room Temperature | Measured indoor temperature |
+| Outdoor Temperature | Measured outdoor temperature |
+| Operation Time | Total runtime (formatted as Xd Xhr or Xhr Xmn) |
+| Compressor | Compressor on/off state |
+
+Additional fields available but disabled by default (uncomment to enable):
+
+| Field | Description |
+|---|---|
+| HA Mode | Home Assistant mode state |
+| Remote Temperature | Temperature from remote sensor |
+| Remote Sensor State | Remote sensor enabled/disabled |
+| Remote Sensor Auto Clear Time | Remote sensor timeout |
+| Timer Mode / On / Off / Remaining | Timer settings |
+| Compressor Frequency | Compressor frequency in Hz |
+| Operation Stage / Fan Stage / Mode Stage | Internal operation stages |
+| Power (W) | Current electrical power draw |
+| Energy (kWh) | Total energy consumed |
 
 ### Customization
 
-You can display additional sensor parameters by editing the `web_sensor()` function in either `hvac_with_controls.be` or `hvac_display_only.be`. 
+You can show or hide any sensor field by editing the `web_sensor()` function in either `.be` file.
 
-Lines starting with `#` are commented out and won't display. To enable additional sensors, simply remove the `#` at the beginning of the line. For example:
+Each field uses **two lines** that must be commented/uncommented together:
+- the format string: `"{s}MiElHVAC ...{m}...{e}"`
+- the value: `sensors['MiElHVAC']['...'],`
+
+To **enable** a field: remove the leading `#` from both lines.
+To **disable** a field: add a leading `#` to both lines.
 
 ```berry
-# Currently hidden:
-#      "{s}MiElHVAC AirDirection{m}%s{e}"
+# Currently hidden — remove both # to display:
+# "{s}MiElHVAC Air Direction{m}%s{e}"
+# sensors['MiElHVAC']['AirDirection'],
 
-# To display, remove the #:
-      "{s}MiElHVAC AirDirection{m}%s{e}"
+# Currently shown — add both # to hide:
+  "{s}MiElHVAC Room Temperature{m}%1.1f °%s{e}"
+  sensors['MiElHVAC']['RoomTemperature'], sensors['TempUnit'],
 ```
 
-Available sensors vary by heat pump model. Uncomment the parameters supported by your specific unit. Refer to your heat pump's service manual for available features.
+> **Note:** All value lines end with a comma `,` — a hidden sentinel field at the end of the list safely absorbs the trailing comma of the last active field, so you never need to worry about removing a trailing comma.
+
+Available sensors vary by heat pump model. Refer to your heat pump's service manual for available features.
 
 ## Troubleshooting
 
@@ -238,6 +289,10 @@ Available sensors vary by heat pump model. Uncomment the parameters supported by
 - Ensure you're using the correct firmware with `USE_MIEL_HVAC`
 - Check MQTT is configured if using Home Assistant integration
 - Try manual commands via console: `HVACSetTemp 22`
+
+### `key_error - Temperature` in logs after firmware upgrade
+- You are running Tasmota >= 15.4.x with a display driver older than v2.0.0
+- Update to v2.0.0 or later — the driver now handles both API versions automatically
 
 ### "Unsupported" error messages
 - Your heat pump may not support all features
@@ -263,9 +318,9 @@ For Home Assistant integration via MQTT, refer to:
 
 ## Credits
 
-- **SwiCago** - Original Mitsubishi protocol reverse engineering and Arduino library
-- **Tasmota team** - Native MiElHVAC driver implementation
-- **Community contributors** - Hardware guides and troubleshooting
+- **SwiCago** — Original Mitsubishi protocol reverse engineering and Arduino library
+- **Tasmota team** — Native MiElHVAC driver implementation
+- **Community contributors** — Hardware guides and troubleshooting
 
 ## License
 
