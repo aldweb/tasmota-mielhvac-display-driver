@@ -42,16 +42,16 @@ Both versions provide a clean, responsive interface matching Tasmota's design.
 
 | Tasmota version | MiElHVAC driver | Status |
 |---|---|---|
-| <= 15.3.x | Old API | ✅ Supported (auto-detected) |
-| >= 15.4.x | New API (PR#24660) | ✅ Supported (auto-detected) |
+| <= 15.3.0 | Old API | ✅ Supported (auto-detected) |
+| >= 15.4.0 | New API (PR#24660) | ✅ Supported (auto-detected) |
 
 The driver automatically detects which API version is running at runtime — no configuration needed.
 
-### API changes in Tasmota >= 15.4.x (PR#24660)
+### API changes in Tasmota >= 15.4.0 (PR#24660)
 
 The MiElHVAC driver introduced in PR#24660 renamed several JSON keys. The display driver handles this transparently:
 
-| Old key (<=15.3.x) | New key (>=15.4.x) | Description |
+| Old key (<=15.3.0) | New key (>=15.4.0) | Description |
 |---|---|---|
 | `Power` | `PowerState` | On/off state (string) |
 | `Temperature` | `RoomTemperature` | Room temperature (float) |
