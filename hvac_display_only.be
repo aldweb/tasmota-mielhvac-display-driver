@@ -1,27 +1,33 @@
 #-
 
---------------------------------------------------------------------
-| Mitsubishi Electric HVAC sensors display driver written in Berry |
-| #1 coded by aldweb (December 17th, 2024)                         |
-| #2 enhanced with control buttons (January 30th, 2026)            |
-| #3 Updated for MiElHVAC driver PR#24660 (April 25th, 2026)       |
---------------------------------------------------------------------
+----------------------------------------------------------------------
+| Mitsubishi Electric HVAC sensors display driver written in Berry   |
+| #1 Coded by aldweb (December 17th, 2024)                           |
+| #2 < Applies to hvac_with_controls.be driver only >                |
+| #3 Updated for MiElHVAC driver PR#24660 (April 25th, 2026)         |
+| #4 Added backward compatibility (April 26th, 2026)                 |
+| #5 < Applies to hvac_with_controls.be driver only >                |
+----------------------------------------------------------------------
 
 For those using the MiElHVAC driver (https://github.com/arendst/Tasmota/blob/development/tasmota/tasmota_xdrv_driver/xdrv_44_miel_hvac.ino),
 this berry display driver lets you visualize the MiElHVAC sensor parameters on the Tasmota web console, which it does not offer by default.
 
-#3 Key renames vs old driver:
+#3 Key renames in driver PR#24660 (Tasmota >= 15.4.x):
   Power            -> PowerState      (on/off string)
   Temperature      -> RoomTemperature (room temp float)
   Compressor       -> CompressorState (on/off string)
   OperationPower   -> Power           (integer Watts)
   OperationEnergy  -> Energy          (float kWh)
 
+#4 Backward compatibility: the driver auto-detects the API version at runtime
+   by checking for the presence of 'PowerState' (new API) or 'Power' string
+   (old API <= 15.3.x), and normalizes all keys transparently.
+
 To enable a field: remove the leading #
 To disable a field: add a leading #
 Each field requires TWO lines to be commented/uncommented:
   - the format string line  "{s}MiElHVAC ...{m}...{e}"
-  - the value line          sensors['MiElHVAC']['...']
+  - the value line          sensors['MiElHVAC']['...'],
 
 -#
 
@@ -29,10 +35,36 @@ var sensors
 
 class HVAC : Driver
 
+  #- normalize sensor keys to new API format regardless of driver version -#
+  def normalize_keys()
+    var h = sensors['MiElHVAC']
+    # Detect old API (<= 15.3.x): 'Power' is a string "on"/"off"
+    # In new API (>= 15.4.x): 'PowerState' exists and 'Power' is an integer
+    if !h.contains('PowerState')
+      # Old API -> normalize to new key names
+      h['PowerState']      = h.contains('Power')           ? h['Power']                   : 'unknown'
+      h['RoomTemperature'] = h.contains('Temperature')     ? real(h['Temperature'])        : 0.0
+      h['CompressorState'] = h.contains('Compressor')      ? h['Compressor']              : 'unknown'
+      h['Power']           = h.contains('OperationPower')  ? int(h['OperationPower'])      : 0
+      h['Energy']          = h.contains('OperationEnergy') ? real(h['OperationEnergy'])    : 0.0
+      # Keys unchanged between versions (listed for reference):
+      # Mode, SetTemperature, FanSpeed, SwingV, SwingH, AirDirection,
+      # Prohibit, OutdoorTemperature, OperationTime, CompressorFrequency,
+      # RemoteTemperatureSensorState, RemoteTemperatureSensorAutoClearTime,
+      # TimerMode, TimerOn, TimerOnRemaining, TimerOff, TimerOffRemaining,
+      # OperationStage, FanStage, ModeStage
+      # Keys only in new API (not available in old, left absent):
+      # HAMode, RemoteTemperature, Purifier, NightMode, EconoCool
+    end
+  end
+
   #- read sensor data -#
   def read_hvac()
     import json
     sensors = json.load(tasmota.read_sensors())
+    if sensors != nil && sensors.contains('MiElHVAC')
+      self.normalize_keys()
+    end
   end
 
   #- trigger a read every second -#
@@ -70,9 +102,9 @@ class HVAC : Driver
       "{s}MiElHVAC Swing Horizontal{m}%s{e}"
     # "{s}MiElHVAC Air Direction{m}%s{e}"
     # "{s}MiElHVAC Prohibit{m}%s{e}"
-    # "{s}MiElHVAC Purifier{m}%s{e}"
-    # "{s}MiElHVAC Night Mode{m}%s{e}"
-    # "{s}MiElHVAC Econo Cool{m}%s{e}"
+    # "{s}MiElHVAC Purifier{m}%s{e}"      # requires cap_run_state (new API >= 15.4.x only)
+    # "{s}MiElHVAC Night Mode{m}%s{e}"    # requires cap_run_state (new API >= 15.4.x only)
+    # "{s}MiElHVAC Econo Cool{m}%s{e}"    # requires cap_run_state (new API >= 15.4.x only)
     # --- Temperatures ---
       "{s}MiElHVAC Room Temperature{m}%1.1f °%s{e}"
     # "{s}MiElHVAC Remote Temperature{m}%1.1f °%s{e}"
@@ -94,9 +126,10 @@ class HVAC : Driver
     # "{s}MiElHVAC Fan Stage{m}%s{e}"
     # "{s}MiElHVAC Mode Stage{m}%s{e}"
     # --- Energy ---
-      "{s}MiElHVAC Power (W){m}%i W{e}"
-      "{s}MiElHVAC Energy{m}%1.1f kWh{e}"
-      ,
+    # "{s}MiElHVAC Power{m}%i W{e}"
+    # "{s}MiElHVAC Energy{m}%1.1f kWh{e}"
+    # --- Sentinel (do not remove) ---
+      "%s",
     # --- General state ---
       sensors['MiElHVAC']['PowerState'],
       sensors['MiElHVAC']['Mode'],
@@ -125,14 +158,16 @@ class HVAC : Driver
     # sensors['MiElHVAC']['TimerOffRemaining'],
     # --- Operation ---
       operation_time_str,
-      sensors['MiElHVAC']['CompressorState']
+      sensors['MiElHVAC']['CompressorState'],
     # sensors['MiElHVAC']['CompressorFrequency'],
     # sensors['MiElHVAC']['OperationStage'],
     # sensors['MiElHVAC']['FanStage'],
     # sensors['MiElHVAC']['ModeStage'],
     # --- Energy ---
     # sensors['MiElHVAC']['Power'],
-    # sensors['MiElHVAC']['Energy']
+    # sensors['MiElHVAC']['Energy'],
+    # --- Sentinel (do not remove) ---
+      ""
     )
 
     tasmota.web_send_decimal(msg)
